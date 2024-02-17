@@ -59,7 +59,6 @@ class GlTrendRequest {
       "accept-language": this.HOST_LANGUAGE,
     };
     //! we will have to check how to transform this into a valid typescript code
-    // this.COOKIES = await this.getGoogleCookie();
   }
 
   /**
@@ -70,81 +69,93 @@ class GlTrendRequest {
    * The method keeps trying to get the 'NID' cookie until it succeeds or runs out of proxies.
    */
   async getGoogleCookie(): Promise<{ [key: string]: string }> {
-    while (true) {
-      // Check if proxies are provided in the request arguments
-      if ("proxies" in this.REQUEST_ARGS) {
-        try {
-          // Send a GET request to the Google Trends URL
-          const response = await axios.get(
-            `${BASE_TRENDS_URL}/explore/?geo=${this.HOST_LANGUAGE.slice(-2)}`,
-            {
-              timeout: this.TIMEOUT,
-              ...this.REQUEST_ARGS,
-            }
-          );
-          // Extract the 'NID' cookie from the response headers
-          const cookies = response.headers["set-cookie"];
-          const nidCookie = cookies?.find((cookie: string) =>
-            cookie.startsWith("NID")
-          );
-
-          // Return the 'NID' cookie
-          //! GOTTA CHECK THIS CODE, FOR NOW I USE THE IF ELSE
-          return {
-            NID: nidCookie
-              ? nidCookie.split(";")[0].split("=")[1]
-              : "undefined",
-          };
-        } catch {
-          // If an error occurs, continue to the next iteration of the loop
-          continue;
-        }
-      } else {
-        let proxy = "";
-        // Check if there are any proxies available
-        if (this.PROXIES.length > 0) {
-          // Select a proxy using the proxy index
-          //! IT SEEMS THIS IS AN STRING, BUT MAKES NO SENSE FOR ME, I'LL CHECK THIS LATER
-          proxy = this.PROXIES[this.PROXY_INDEX];
-        }
-
-        try {
-          // Send a GET request to the Google Trends URL using the selected proxy
-          const response = await axios.get(
-            `${BASE_TRENDS_URL}/explore/?geo=${this.HOST_LANGUAGE.slice(-2)}`,
-            {
-              timeout: this.TIMEOUT,
-              proxy: { host: proxy, port: 8080 }, // assuming port 8080, adjust as needed
-              ...this.REQUEST_ARGS,
-            }
-          );
-          // Extract the 'NID' cookie from the response headers
-          const cookies = response.headers["set-cookie"];
-          const nidCookie = cookies?.find((cookie: string) =>
-            cookie.startsWith("NID")
-          );
-          // Return the 'NID' cookie
-          return {
-            NID: nidCookie ? nidCookie.split(";")[0].split("=")[1] : "",
-          };
-        } catch (error) {
-          // If a proxy error occurs
-          if (error.code === "ECONNRESET") {
-            console.log("Proxy error. Changing IP");
-            // If there are more than one proxies, remove the problematic proxy
-            if (this.PROXIES.length > 1) {
-              this.PROXIES.splice(this.PROXY_INDEX, 1);
-            } else {
-              // If there are no more proxies left, throw the error and end the method
-              console.log("No more proxies available. Bye!");
-              throw error;
-            }
-            // Continue to the next iteration of the loop
-            continue;
+    // while (true) {
+    // Check if proxies are provided in the request arguments
+    if ("proxies" in this.REQUEST_ARGS) {
+      try {
+        // Send a GET request to the Google Trends URL
+        const response = await axios.get(
+          `${BASE_TRENDS_URL}/explore/?geo=${this.HOST_LANGUAGE.slice(-2)}`,
+          {
+            timeout: this.TIMEOUT,
+            ...this.REQUEST_ARGS,
           }
+        );
+        // Extract the 'NID' cookie from the response headers
+        const cookies = response.headers["set-cookie"];
+        const nidCookie = cookies?.find((cookie: string) =>
+          cookie.startsWith("NID")
+        );
+
+        // Return the 'NID' cookie
+        //! GOTTA CHECK THIS CODE, FOR NOW I USE THE IF ELSE
+        return {
+          NID: nidCookie ? nidCookie.split(";")[0].split("=")[1] : "undefined",
+        };
+      } catch {
+        // If an error occurs, continue to the next iteration of the loop
+        // continue;
+      }
+    } else {
+      let proxy = "";
+      // Check if there are any proxies available
+      if (this.PROXIES.length > 0) {
+        // Select a proxy using the proxy index
+        //! IT SEEMS THIS IS AN STRING, BUT MAKES NO SENSE FOR ME, I'LL CHECK THIS LATER
+        proxy = this.PROXIES[this.PROXY_INDEX];
+      }
+
+      try {
+        // Send a GET request to the Google Trends URL using the selected proxy
+        const response = await fetch(
+          `${BASE_TRENDS_URL}/explore/?geo=${this.HOST_LANGUAGE.slice(
+            -2
+          ).trim()}`
+        );
+        const cookies = response.headers.get("set-cookie");
+
+        // Extract the 'NID' cookie from the response headers
+        if (cookies) {
+          for (const coockieValue of cookies?.split("; ")) {
+            const splitedCookie = coockieValue.split("=");
+            const name = splitedCookie[0];
+            if (name === "NID") {
+              const value = splitedCookie.slice(1).join("=");
+              return { [name]: value };
+            }
+          }
+        }
+        // Return the 'NID' cookie
+        // const response = await axios.get(
+        //   `${BASE_TRENDS_URL}/explore/?geo=${this.HOST_LANGUAGE.slice(-2)}`,
+        //   {
+        //     timeout: this.TIMEOUT,
+        //     proxy: { host: proxy, port: 8080 }, // assuming port 8080, adjust as needed
+        //     ...this.REQUEST_ARGS,
+        //   }
+        // );
+        // Extract the 'NID' cookie from the response headers
+        // return {
+        //   NID: nidCookie ? nidCookie.split(";")[0].split("=")[1] : "",
+        // };
+      } catch (error) {
+        // If a proxy error occurs
+        if (error.code === "ECONNRESET") {
+          console.log("Proxy error. Changing IP");
+          // If there are more than one proxies, remove the problematic proxy
+          if (this.PROXIES.length > 1) {
+            this.PROXIES.splice(this.PROXY_INDEX, 1);
+          } else {
+            // If there are no more proxies left, throw the error and end the method
+            console.log("No more proxies available. Bye!");
+            throw error;
+          }
+          // Continue to the next iteration of the loop
+          // continue;
         }
       }
     }
+    // }
   }
 
   async getData(
@@ -154,44 +165,82 @@ class GlTrendRequest {
     kwargs: object = {}
   ) {
     // Create a new axios instance
-    const axiosRequest = axios.create({
-      // httpsAgent: new https.Agent({ keepAlive: true }),
-      headers: this.HEADERS,
-      timeout: this.TIMEOUT,
-      //! CHECK THE PROXY THING LATTER
-      // proxy:
-      //   this.proxies.length > 0
-      //     ? { host: this.proxies[this.proxy_index], port: 8080 }
-      //     : undefined, // assuming port 8080, adjust as needed
-      ...this.REQUEST_ARGS,
-    });
+    // const axiosRequest = axios.create({
+    //   // httpsAgent: new https.Agent({ keepAlive: true }),
+    //   headers: this.HEADERS,
+    //   timeout: this.TIMEOUT,
+    //   params: kwargs,
+    //   //! CHECK THE PROXY THING LATTER
+    //   // proxy:
+    //   //   this.proxies.length > 0
+    //   //     ? { host: this.proxies[this.proxy_index], port: 8080 }
+    //   //     : undefined, // assuming port 8080, adjust as needed
+    //   ...this.REQUEST_ARGS,
+    // });
 
-    let response: AxiosResponse;
+    let response;
+
+    // response = await axios({
+    //   method: "post",
+    //   headers: this.HEADERS,
+    //   url,
+    //   data: JSON.stringify(kwargs),
+    //   // params: kwargs,
+    // });
+
+    const urlTest =
+      "https://trends.google.es/trends/api/explore?hl=es&tz=-60&req=%7B%22comparisonItem%22:%5B%7B%22keyword%22:%22blockchain%22,%22geo%22:%22ES%22,%22time%22:%22now+1-d%22%7D%5D,%22category%22:0,%22property%22:%22%22%7D&tz=-60";
+
     // If the method is POST, use axios.post, otherwise use axios.get
     if (method === HttpRequestMethod.POST) {
       //! what are the arguments for this
-      response = await axiosRequest.post(url, kwargs);
+      response = await fetch(urlTest, {
+        method: "POST",
+        headers: {
+          Cookie: `NID=${this.COOKIES["NID"]}`,
+          ...this.HEADERS,
+        },
+      });
+      // response = await axios.post(urlTest);
+      // response = await axiosRequest.post(url);
+      // response = await axiosRequest.post(url, kwargs);
     } else {
       //! what are the arguments for this
-      response = await axiosRequest.get(url, kwargs);
+      // response = await axiosRequest.get(url, kwargs);
     }
 
     // Check if the response contains JSON and throw an exception otherwise
-    if (
-      response.status === 200 &&
-      (response.headers["content-type"].includes("application/json") ||
-        response.headers["content-type"].includes("application/javascript") ||
-        response.headers["content-type"].includes("text/javascript"))
-    ) {
-      // Trim initial characters
-      const content = response.data.slice(trimChars);
+    if (response.status === 200) {
+      const contentType = response.headers.get("content-type");
 
-      // Get a new proxy
-      //! I'LL CHECK THIS LATER, we will have to create the method GetNewProxy
-      // this.GetNewProxy(); // assuming this method exists
+      if (
+        contentType.includes("application/json") ||
+        contentType.includes("application/javascript") ||
+        contentType.includes("text/javascript")
+      ) {
+        // Trim initial characters
+        const responseText = await response.text();
 
-      // Parse JSON and return it
-      return JSON.parse(content);
+        const regex = /{"(\w+)":/;
+        const jsonStartIndex: number = responseText.search(regex);
+        const responseKey = responseText.match(regex);
+
+        if (jsonStartIndex !== -1) {
+          const jsonText = responseText.substring(jsonStartIndex);
+          const jsonResult = JSON.parse(jsonText);
+          console.log(jsonResult);
+        }
+
+        // const jsonData = await response.json();
+        // const content = response.data.slice(trimChars);
+
+        // Get a new proxy
+        //! I'LL CHECK THIS LATER, we will have to create the method GetNewProxy
+        // this.GetNewProxy(); // assuming this method exists
+
+        // Parse JSON and return it
+        return JSON.parse(responseText);
+      }
     } else {
       if (response.status === 429) {
         // Too Many Requests
@@ -203,13 +252,13 @@ class GlTrendRequest {
   }
 
   //Create the payload for related queries, interest over time and interest by region
-  buildPayload(
+  async buildPayload(
     kw_list: string[],
     cat: number = 0,
     timeframe: string = "today 5-y",
     geo: string = "",
     gprop: string = ""
-  ): void {
+  ): Promise<void> {
     if (!["", "images", "news", "youtube", "froogle"].includes(gprop)) {
       throw new Error(
         "gprop must be empty (to indicate web), images, news, youtube, or froogle"
@@ -245,7 +294,7 @@ class GlTrendRequest {
     // requests will mangle this if it is not a string
     this.TOKEN_PAYLOAD["req"] = JSON.stringify(this.TOKEN_PAYLOAD["req"]);
     // get tokens
-    this.getTokens();
+    await this.getTokens();
   }
 
   /**
@@ -253,12 +302,20 @@ class GlTrendRequest {
    */
   async getTokens(): Promise<void> {
     // make the request and parse the returned json
+    if (this.COOKIES["NID"] === undefined) {
+      this.COOKIES = await this.getGoogleCookie();
+    }
+
     const widget_dicts = await this.getData(
       GENERAL_URL,
       HttpRequestMethod.POST,
       4,
       this.TOKEN_PAYLOAD
-    )["widgets"];
+    );
+
+    if (widget_dicts["widgets"] === undefined) {
+      throw new Error("No data returned from Google Trends");
+    }
 
     // order of the json matters...
     let first_region_token = true;
@@ -312,7 +369,7 @@ class GlTrendRequest {
 
     const req_json = response.data;
 
-    // Here you would typically transform the req_json into a DataFrame.
+    //!! Here you would typically transform the req_json into a DataFrame.
     // However, JavaScript (and by extension TypeScript) does not have a built-in DataFrame data structure like Python's pandas.
     // You would need to use a library like Danfo.js to work with DataFrame-like structures in JavaScript.
     // For the sake of this example, let's assume you have transformed req_json into a DataFrame-like structure and stored it in a variable named df.
@@ -321,4 +378,76 @@ class GlTrendRequest {
 
     return req_json;
   }
+
+  //!! gotta work on this later
+  async multiRangeInterestOverTime(): Promise<any> {}
+
+  async related_topics(): Promise<any> {
+    const result_dict: any = {};
+
+    // Loop over each item in the related_topics_widget_list
+    for (const request_json of this.RELATED_TOPICS_WIDGET_LIST) {
+      let kw: string;
+      try {
+        // Try to extract the keyword from the request_json
+        kw =
+          request_json["request"]["restriction"]["complexKeywordsRestriction"][
+            "keyword"
+          ][0]["value"];
+      } catch (error) {
+        // If the keyword cannot be found, set it to an empty string
+        kw = "";
+      }
+
+      // Prepare the payload for the request
+      const related_payload = {
+        req: JSON.stringify(request_json["request"]),
+        token: request_json["token"],
+        tz: this.TIME_ZONE,
+      };
+
+      // Make the request and parse the returned JSON
+      const response: AxiosResponse = await axios.get(RELATED_QUERIES_URL, {
+        params: related_payload,
+      });
+      const req_json = response.data;
+
+      let df_top: any;
+      try {
+        // Try to extract the top topics from the response
+        const top_list = req_json["default"]["rankedList"][0]["rankedKeyword"];
+        // Transform the top_list into a DataFrame-like structure
+        df_top = this.transformToDataFrame(top_list); // replace this with your actual transformation code
+      } catch (error) {
+        // If no top topics are found, set df_top to null
+        df_top = null;
+      }
+
+      let df_rising: any;
+      try {
+        // Try to extract the rising topics from the response
+        const rising_list =
+          req_json["default"]["rankedList"][1]["rankedKeyword"];
+        // Transform the rising_list into a DataFrame-like structure
+        df_rising = this.transformToDataFrame(rising_list); // replace this with your actual transformation code
+      } catch (error) {
+        // If no rising topics are found, set df_rising to null
+        df_rising = null;
+      }
+
+      // Add the results to the result_dict
+      result_dict[kw] = { rising: df_rising, top: df_top };
+    }
+
+    return result_dict;
+  }
+
+  //!! This is a placeholder for your actual transformation code
+  transformToDataFrame(list: any[]): any {
+    // Transform the list into a DataFrame-like structure
+    // ...
+    return null;
+  }
 }
+
+export default GlTrendRequest;
