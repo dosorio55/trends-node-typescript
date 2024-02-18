@@ -16,6 +16,7 @@ async function fetchDataAndRespond(RequesT: GlTrendRequest, key_words, res) {
     res.end(JSON.stringify(data));
   } catch (err) {
     console.log(err);
+    res.writeHead(500, { "Content-Type": "text/plain" });
   }
 }
 

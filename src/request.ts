@@ -158,96 +158,91 @@ class GlTrendRequest {
     // }
   }
 
+  formatUrl(url: string, kwargs: object): string {
+    const URLEntity = new URL(url);
+    for (const paramKey in kwargs) {
+      let paramValue = kwargs[paramKey];
+      if (typeof paramValue === "object") {
+        paramValue = JSON.stringify(paramValue);
+      }
+      URLEntity.searchParams.append(paramKey, paramValue);
+    }
+
+    return URLEntity.toString();
+  }
+
   async getData(
     url: string,
     method: HttpRequestMethod = HttpRequestMethod.GET,
     trimChars: number = 0,
     kwargs: object = {}
   ) {
+    // Format the URL with the provided parameters in kwargs
+    const urlWithParams = this.formatUrl(url, kwargs);
+
     // Create a new axios instance
-    // const axiosRequest = axios.create({
-    //   // httpsAgent: new https.Agent({ keepAlive: true }),
-    //   headers: this.HEADERS,
-    //   timeout: this.TIMEOUT,
-    //   params: kwargs,
-    //   //! CHECK THE PROXY THING LATTER
-    //   // proxy:
-    //   //   this.proxies.length > 0
-    //   //     ? { host: this.proxies[this.proxy_index], port: 8080 }
-    //   //     : undefined, // assuming port 8080, adjust as needed
-    //   ...this.REQUEST_ARGS,
-    // });
+    const requestArgs: RequestInit = {
+      method,
+      headers: { ...this.HEADERS, Cookie: `NID=${this.COOKIES["NID"]}` },
+    };
 
-    let response;
+    //! WE WILL NEED TO CHECK THIS LATER
+    /*     const axiosRequest = axios.create({
+      // httpsAgent: new https.Agent({ keepAlive: true }),
+      headers: this.HEADERS,
+      timeout: this.TIMEOUT,
+      params: kwargs,
+      // proxy:
+      //   this.proxies.length > 0
+      //     ? { host: this.proxies[this.proxy_index], port: 8080 }
+      //     : undefined, // assuming port 8080, adjust as needed
+      ...this.REQUEST_ARGS,
+    }); */
 
-    // response = await axios({
-    //   method: "post",
-    //   headers: this.HEADERS,
-    //   url,
-    //   data: JSON.stringify(kwargs),
-    //   // params: kwargs,
-    // });
+    // let response: Promise<Response>;
 
-    const urlTest =
-      "https://trends.google.es/trends/api/explore?hl=es&tz=-60&req=%7B%22comparisonItem%22:%5B%7B%22keyword%22:%22blockchain%22,%22geo%22:%22ES%22,%22time%22:%22now+1-d%22%7D%5D,%22category%22:0,%22property%22:%22%22%7D&tz=-60";
+    // const urlTest =
+    //   "https://trends.google.es/trends/api/explore?hl=es&tz=-60&req=%7B%22comparisonItem%22:%5B%7B%22keyword%22:%22blockchain%22,%22geo%22:%22ES%22,%22time%22:%22now+1-d%22%7D%5D,%22category%22:0,%22property%22:%22%22%7D&tz=-60";
 
-    // If the method is POST, use axios.post, otherwise use axios.get
-    if (method === HttpRequestMethod.POST) {
-      //! what are the arguments for this
-      response = await fetch(urlTest, {
-        method: "POST",
-        headers: {
-          Cookie: `NID=${this.COOKIES["NID"]}`,
-          ...this.HEADERS,
-        },
-      });
-      // response = await axios.post(urlTest);
-      // response = await axiosRequest.post(url);
-      // response = await axiosRequest.post(url, kwargs);
-    } else {
-      //! what are the arguments for this
-      // response = await axiosRequest.get(url, kwargs);
-    }
+    try {
+      const response = await fetch(urlWithParams, requestArgs);
 
-    // Check if the response contains JSON and throw an exception otherwise
-    if (response.status === 200) {
-      const contentType = response.headers.get("content-type");
+      if (response.status === 200) {
+        const contentType = response.headers.get("content-type");
 
-      if (
-        contentType.includes("application/json") ||
-        contentType.includes("application/javascript") ||
-        contentType.includes("text/javascript")
-      ) {
-        // Trim initial characters
-        const responseText = await response.text();
+        if (
+          contentType.includes("application/json") ||
+          contentType.includes("application/javascript") ||
+          contentType.includes("text/javascript")
+        ) {
+          // Get a new proxy
+          //! I'LL CHECK THIS LATER, we will have to create the method GetNewProxy
+          // this.GetNewProxy(); // assuming this method exists
+          // Trim initial characters
+          const responseText = await response.text();
 
-        const regex = /{"(\w+)":/;
-        const jsonStartIndex: number = responseText.search(regex);
-        const responseKey = responseText.match(regex);
+          const regex = /{"(\w+)":/;
+          const jsonStartIndex: number = responseText.search(regex);
+          const responseKey = responseText.match(regex);
 
-        if (jsonStartIndex !== -1) {
-          const jsonText = responseText.substring(jsonStartIndex);
-          const jsonResult = JSON.parse(jsonText);
-          console.log(jsonResult);
+          if (jsonStartIndex !== -1 && responseKey && responseKey[1]) {
+            const jsonText = responseText.substring(jsonStartIndex);
+            const jsonResult = JSON.parse(jsonText);
+            return jsonResult[responseKey[1]];
+          } else {
+            throw new Error("JSON is malformed");
+          }
+        }
+      } else {
+        if (response.status === 429) {
+          // Too Many Requests
+          throw new Error("TooManyRequestsError");
         }
 
-        // const jsonData = await response.json();
-        // const content = response.data.slice(trimChars);
-
-        // Get a new proxy
-        //! I'LL CHECK THIS LATER, we will have to create the method GetNewProxy
-        // this.GetNewProxy(); // assuming this method exists
-
-        // Parse JSON and return it
-        return JSON.parse(responseText);
+        throw new Error("ResponseError");
       }
-    } else {
-      if (response.status === 429) {
-        // Too Many Requests
-        throw new Error("TooManyRequestsError");
-      }
-
-      throw new Error("ResponseError");
+    } catch (error) {
+      console.error(error);
     }
   }
 
@@ -298,14 +293,26 @@ class GlTrendRequest {
   }
 
   /**
+   * Asynchronous method to check and update the cookie if necessary.
+   */
+  async checkCookie() {
+    // Check if the COOKIES object is empty or the "NID" property is undefined
+    if (
+      Object.keys(this.COOKIES).length === 0 &&
+      this.COOKIES["NID"] === undefined
+    ) {
+      // If so, call the asynchronous method getGoogleCookie to fetch the cookie
+      // and assign the result to this.COOKIES
+      this.COOKIES = await this.getGoogleCookie();
+    }
+  }
+
+  /**
    * Makes request to Google to get API tokens for interest over time, interest by region and related queries
    */
   async getTokens(): Promise<void> {
+    await this.checkCookie();
     // make the request and parse the returned json
-    if (this.COOKIES["NID"] === undefined) {
-      this.COOKIES = await this.getGoogleCookie();
-    }
-
     const widget_dicts = await this.getData(
       GENERAL_URL,
       HttpRequestMethod.POST,
@@ -313,7 +320,7 @@ class GlTrendRequest {
       this.TOKEN_PAYLOAD
     );
 
-    if (widget_dicts["widgets"] === undefined) {
+    if (!widget_dicts) {
       throw new Error("No data returned from Google Trends");
     }
 
@@ -329,17 +336,21 @@ class GlTrendRequest {
     for (const widget of widget_dicts) {
       if (widget.id === "TIMESERIES") {
         this.INTEREST_OVER_TIME_WIDGET = widget;
+        continue;
       }
       if (widget.id === "GEO_MAP" && first_region_token) {
         this.INTEREST_BY_REGION_WIDGET = widget;
         first_region_token = false;
+        continue;
       }
       // response for each term, put into a list
       if (widget.id.includes("RELATED_TOPICS")) {
         this.RELATED_TOPICS_WIDGET_LIST.push(widget);
+        continue;
       }
       if (widget.id.includes("RELATED_QUERIES")) {
         this.RELATED_QUERIES_WIDGET_LIST.push(widget);
+        continue;
       }
     }
   }
@@ -362,21 +373,11 @@ class GlTrendRequest {
       over_time_payload
     );
 
-    // make the request and parse the returned json
-    const response: AxiosResponse = await axios.get(INTEREST_OVER_TIME_URL, {
-      params: over_time_payload,
-    });
-
-    const req_json = response.data;
-
-    //!! Here you would typically transform the req_json into a DataFrame.
-    // However, JavaScript (and by extension TypeScript) does not have a built-in DataFrame data structure like Python's pandas.
-    // You would need to use a library like Danfo.js to work with DataFrame-like structures in JavaScript.
-    // For the sake of this example, let's assume you have transformed req_json into a DataFrame-like structure and stored it in a variable named df.
-
-    // ... DataFrame transformation code here ...
-
-    return req_json;
+    if (!responseJson) {
+      throw new Error("An error occurred while fetching data from the API");
+    }
+    
+    return responseJson;
   }
 
   //!! gotta work on this later
