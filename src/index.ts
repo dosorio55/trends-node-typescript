@@ -30,7 +30,6 @@ const fetchInterestByRegion = async (key_words) => {
   }
 };
 
-
 const fetchRelatedTopics = async (key_words) => {
   try {
     await RequesT.buildPayload(key_words); //"Aqui falta un custom hook:"
@@ -53,6 +52,12 @@ const server = createServer(async (req, res) => {
     await fetchRelatedTopics(key_words);
   } else if (req.url === "/trending-searches") {
     await RequesT.trendingSearches();
+  } else if (req.url === "/related-queries") {
+    await RequesT.buildPayload(key_words);
+    await RequesT.relatedQueries();
+  } else if (req.url === "/today-searches") {
+    await RequesT.buildPayload(key_words);
+    await RequesT.todaySearches();
   } else {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not Found");

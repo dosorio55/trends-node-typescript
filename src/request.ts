@@ -1,5 +1,9 @@
 import axios, { AxiosResponse } from "axios";
-import { InterestByRegionWidget, intByRegionWidgetInitial } from "./type";
+import {
+  InterestByRegionWidget,
+  RelatedQueries,
+  intByRegionWidgetInitial,
+} from "./type";
 
 const BASE_TRENDS_URL = "https://trends.google.com/trends";
 
@@ -39,7 +43,7 @@ class GlTrendRequest {
   TIME_ZONE: string = "0";
   INTEREST_OVER_TIME_WIDGET: object = {};
   INTEREST_BY_REGION_WIDGET: InterestByRegionWidget = intByRegionWidgetInitial;
-  RELATED_QUERIES_WIDGET_LIST: object[] = [];
+  RELATED_QUERIES_WIDGET_LIST: RelatedQueries[] = [];
   RELATED_TOPICS_WIDGET_LIST: object[] = [];
 
   constructor(
@@ -441,8 +445,7 @@ class GlTrendRequest {
         const dataForAllContries = await searchesResponse.json();
 
         if (dataForAllContries[region]) {
-          const data = dataForAllContries[region];
-          return data;
+          return dataForAllContries[region];
         } else {
           throw new Error("no data found for the provided region");
         }
@@ -532,18 +535,97 @@ class GlTrendRequest {
 
     return []; //! Placeholder return
   }
-}
 
-/*
-Interest Over Time
-Multirange Interest Over Time
-Historical Hourly Interest
-Interest by Region
-Related Topics
-Related Queries
-Trending Searches
-Realtime Search Trends
-Top Charts
-*/
+  async relatedQueries(): Promise<any> {
+    const resultDict: { [key: string]: { top: any; rising: any } } = {};
+
+    for (const requestJson of this.RELATED_QUERIES_WIDGET_LIST) {
+      let kw: string;
+      try {
+        kw =
+          requestJson.request.restriction.complexKeywordsRestriction.keyword[0]
+            .value;
+      } catch {
+        kw = "";
+      }
+
+      const relatedPayload = {
+        req: JSON.stringify(requestJson.request),
+        token: requestJson.token,
+        tz: this.TIME_ZONE,
+      };
+
+      const relatedQueriesResponse = await this.getData(
+        RELATED_QUERIES_URL,
+        HttpRequestMethod.GET,
+        relatedPayload
+      );
+
+      if (
+        relatedQueriesResponse &&
+        relatedQueriesResponse.rankedList.length > 0
+      ) {
+        const topQueries =
+          relatedQueriesResponse.rankedList[0]?.rankedKeyword?.map(
+            (rk: any) => ({
+              query: rk.query,
+              value: rk.value,
+            })
+          );
+
+        const risingQueries =
+          relatedQueriesResponse.rankedList[1]?.rankedKeyword?.map(
+            (rk: any) => ({
+              query: rk.query,
+              value: rk.value,
+            })
+          );
+
+        resultDict[kw] = { top: topQueries, rising: risingQueries };
+      } else {
+        resultDict[kw] = { top: null, rising: null };
+      }
+    }
+
+    return resultDict;
+  }
+
+  async todaySearches(pn: string = "US"): Promise<any[]> {
+    const todaySearchesPayload = {
+      ns: 15,
+      geo: pn || this.GEO,
+      //! geo: pn, does this have to always be 'US'?
+      tz: this.TIME_ZONE,
+      //!tz: '-180', does this have to always be -180?
+      hl: this.HOST_LANGUAGE,
+      // Include other necessary parameters from this.requestsArgs if needed
+    };
+
+    const todaySearchedResponse = await this.getData(
+      TODAY_SEARCHES_URL,
+      HttpRequestMethod.GET,
+      todaySearchesPayload
+    );
+
+    if (
+      todaySearchedResponse &&
+      todaySearchedResponse["trendingSearchesDays"].length > 0
+    ) {
+      const reqJson =
+        todaySearchedResponse["trendingSearchesDays"][0]?.["trendingSearches"];
+      const result = reqJson.map(
+        (trend: any) => trend.title.query || "Unknown"
+      );
+
+      return result;
+    } else {
+      throw new Error("An error occurred while fetching data from the API");
+    }
+  }
+
+  async realTimeTrendingSearches() {
+    
+  }
+}
 
 export default GlTrendRequest;
