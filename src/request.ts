@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from "axios";
+import { InterestByRegionWidget, intByRegionWidgetInitial } from "./type";
 
 const BASE_TRENDS_URL = "https://trends.google.com/trends";
 
@@ -37,7 +38,7 @@ class GlTrendRequest {
   TOKEN_PAYLOAD: object = {};
   TIME_ZONE: string = "0";
   INTEREST_OVER_TIME_WIDGET: object = {};
-  INTEREST_BY_REGION_WIDGET: object = {};
+  INTEREST_BY_REGION_WIDGET: InterestByRegionWidget = intByRegionWidgetInitial;
   RELATED_QUERIES_WIDGET_LIST: object[] = [];
   RELATED_TOPICS_WIDGET_LIST: object[] = [];
 
@@ -174,7 +175,6 @@ class GlTrendRequest {
   async getData(
     url: string,
     method: HttpRequestMethod = HttpRequestMethod.GET,
-    trimChars: number = 0,
     kwargs: object = {}
   ) {
     // Format the URL with the provided parameters in kwargs
@@ -250,7 +250,7 @@ class GlTrendRequest {
   async buildPayload(
     kw_list: string[],
     cat: number = 0,
-    timeframe: string = "today 5-y",
+    timeframe: string = "today 12-m",
     geo: string = "",
     gprop: string = ""
   ): Promise<void> {
@@ -316,7 +316,6 @@ class GlTrendRequest {
     const widget_dicts = await this.getData(
       GENERAL_URL,
       HttpRequestMethod.POST,
-      4,
       this.TOKEN_PAYLOAD
     );
 
@@ -369,86 +368,182 @@ class GlTrendRequest {
     const responseJson = await this.getData(
       INTEREST_OVER_TIME_URL,
       HttpRequestMethod.GET,
-      5,
       over_time_payload
     );
 
     if (!responseJson) {
       throw new Error("An error occurred while fetching data from the API");
     }
-    
+
     return responseJson;
   }
 
   //!! gotta work on this later
   async multiRangeInterestOverTime(): Promise<any> {}
 
-  async related_topics(): Promise<any> {
-    const result_dict: any = {};
+  async relatedTopics(): Promise<any> {
+    const resultDict: any = {};
 
     // Loop over each item in the related_topics_widget_list
     for (const request_json of this.RELATED_TOPICS_WIDGET_LIST) {
       let kw: string;
       try {
-        // Try to extract the keyword from the request_json
         kw =
           request_json["request"]["restriction"]["complexKeywordsRestriction"][
             "keyword"
           ][0]["value"];
       } catch (error) {
-        // If the keyword cannot be found, set it to an empty string
         kw = "";
       }
 
-      // Prepare the payload for the request
-      const related_payload = {
+      const relatedPayload = {
         req: JSON.stringify(request_json["request"]),
         token: request_json["token"],
         tz: this.TIME_ZONE,
       };
 
-      // Make the request and parse the returned JSON
-      const response: AxiosResponse = await axios.get(RELATED_QUERIES_URL, {
-        params: related_payload,
-      });
-      const req_json = response.data;
+      const responseJson = await this.getData(
+        RELATED_QUERIES_URL,
+        HttpRequestMethod.GET,
+        relatedPayload
+      );
 
-      let df_top: any;
-      try {
-        // Try to extract the top topics from the response
-        const top_list = req_json["default"]["rankedList"][0]["rankedKeyword"];
-        // Transform the top_list into a DataFrame-like structure
-        df_top = this.transformToDataFrame(top_list); // replace this with your actual transformation code
-      } catch (error) {
-        // If no top topics are found, set df_top to null
-        df_top = null;
+      if (!responseJson) {
+        throw new Error("An error occurred while fetching data from the API");
       }
 
-      let df_rising: any;
-      try {
-        // Try to extract the rising topics from the response
-        const rising_list =
-          req_json["default"]["rankedList"][1]["rankedKeyword"];
-        // Transform the rising_list into a DataFrame-like structure
-        df_rising = this.transformToDataFrame(rising_list); // replace this with your actual transformation code
-      } catch (error) {
-        // If no rising topics are found, set df_rising to null
-        df_rising = null;
+      let relatedTop: any;
+      let relatedRising: any;
+
+      if (responseJson["rankedList"].length > 0) {
+        relatedTop = responseJson["rankedList"][0]["rankedKeyword"];
+        relatedRising = responseJson["rankedList"][1]["rankedKeyword"];
+      } else {
+        relatedTop = null;
+        relatedRising = null;
       }
 
-      // Add the results to the result_dict
-      result_dict[kw] = { rising: df_rising, top: df_top };
+      resultDict[kw] = { top: relatedTop, rising: relatedRising };
     }
 
-    return result_dict;
+    return resultDict;
   }
 
-  //!! This is a placeholder for your actual transformation code
-  transformToDataFrame(list: any[]): any {
-    // Transform the list into a DataFrame-like structure
-    // ...
-    return null;
+  /**
+   * Define an asynchronous function named 'trendingSearches'
+   * The function takes one argument 'pn' which defaults to "united_states" if no value is provided */
+  //! ojo, variable sin usar
+  async trendingSearches(region: string = "united_states") {
+    try {
+      const searchesResponse = await fetch(TRENDING_SEARCHES_URL);
+
+      if (searchesResponse.status === 200) {
+        const dataForAllContries = await searchesResponse.json();
+
+        if (dataForAllContries[region]) {
+          const data = dataForAllContries[region];
+          return data;
+        } else {
+          throw new Error("no data found for the provided region");
+        }
+      } else {
+        throw new Error("Error while fetching trending searches");
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async interestByRegion(
+    resolution: "COUNTRY" | "REGION" | "CITY" | "DMA" = "COUNTRY",
+    incLowVol: boolean = false,
+    //! not used variable
+    incGeoCode: boolean = false
+  ): Promise<any> {
+    // Prepare the request payload
+    if (this.GEO === "") {
+      this.INTEREST_BY_REGION_WIDGET.request.resolution = resolution;
+    } else if (
+      this.GEO === "US" &&
+      ["DMA", "CITY", "REGION"].includes(resolution)
+    ) {
+      this.INTEREST_BY_REGION_WIDGET.request.resolution = resolution;
+    }
+
+    this.INTEREST_BY_REGION_WIDGET.request.includeLowSearchVolumeGeos =
+      incLowVol;
+
+    // Convert to string as HTTP request libraries might mangle objects
+    const regionPayload = {
+      req: JSON.stringify(this.INTEREST_BY_REGION_WIDGET.request),
+      token: this.INTEREST_BY_REGION_WIDGET.token,
+      tz: this.TIME_ZONE,
+    };
+
+    // Perform the request
+    const response = await this.getData(
+      INTEREST_BY_REGION_URL,
+      HttpRequestMethod.GET,
+      regionPayload
+    );
+
+    // Assuming response is already parsed JSON
+    const data = response.default.geoMapData;
+
+    if (!data || data.length === 0) {
+      return []; // Return an empty array if no data
+    }
+
+    // Transform the response data into a suitable structure
+    // This part would require replacing pandas functionality with TypeScript logic
+    // Below comments suggest the logic that needs to be replicated in TypeScript
+
+    /* 
+  const df = pd.DataFrame(data);
+  if (df.empty) {
+      return df;
+  }
+
+  const geoColumn = df.columns.includes('geoCode') ? 'geoCode' : 'coordinates';
+  const columns = ['geoName', geoColumn, 'value'];
+  df = df[columns].setIndex(['geoName']).sortIndex();
+
+  const resultDf = df['value'].apply(x => pd.Series(
+      x.toString().replace('[', '').replace(']', '').split(',')
+  ));
+
+  if (incGeoCode) {
+      if (df.columns.includes(geoColumn)) {
+          resultDf[geoColumn] = df[geoColumn];
+      } else {
+          console.log('Could not find geo_code column; Skipping');
+      }
+  }
+
+  for (let idx = 0; idx < this.kwList.length; idx++) {
+      const kw = this.kwList[idx];
+      resultDf[kw] = resultDf[idx].astype('int');
+      delete resultDf[idx];
+  }
+  */
+
+    // The TypeScript version will need to replicate the DataFrame manipulation logic
+    // using JavaScript arrays and objects or a suitable data manipulation library
+
+    return []; //! Placeholder return
   }
 }
+
+/*
+Interest Over Time
+Multirange Interest Over Time
+Historical Hourly Interest
+Interest by Region
+Related Topics
+Related Queries
+Trending Searches
+Realtime Search Trends
+Top Charts
+*/
 
 export default GlTrendRequest;
