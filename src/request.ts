@@ -623,9 +623,35 @@ class GlTrendRequest {
     }
   }
 
-  async realTimeTrendingSearches() {
-    
+  //! seguimos desde acá
+
+  async suggestions(keyword: string): Promise<any> {
+    const kwParam = encodeURIComponent(keyword); //!! need quote, check original Equivalent to Python's quote
+    const parameters = { hl: this.HOST_LANGUAGE };
+
+    const reqJson = await this.getData(
+      SUGGESTIONS_URL,
+      HttpRequestMethod.GET,
+      parameters
+    );
+
+    // Assuming the response structure is similar to the Python example
+    return reqJson["topics"];
   }
+
+  async categories(): Promise<any> {
+    const params = { hl: this.HOST_LANGUAGE };
+
+    const reqJson = await this.getData(
+      CATEGORIES_URL,
+      HttpRequestMethod.GET,
+      params
+    );
+
+    return reqJson;
+  }
+
+  async realTimeTrendingSearches() {}
 }
 
 export default GlTrendRequest;
