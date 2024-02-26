@@ -18,7 +18,6 @@ interface Headers {
 
 const GENERAL_URL = `${BASE_TRENDS_URL}/api/explore`;
 const INTEREST_OVER_TIME_URL = `${BASE_TRENDS_URL}/api/widgetdata/multiline`;
-const MULTIRANGE_INTEREST_OVER_TIME_URL = `${BASE_TRENDS_URL}/api/widgetdata/multirange`;
 const INTEREST_BY_REGION_URL = `${BASE_TRENDS_URL}/api/widgetdata/comparedgeo`;
 const RELATED_QUERIES_URL = `${BASE_TRENDS_URL}/api/widgetdata/relatedsearches`;
 const TRENDING_SEARCHES_URL = `${BASE_TRENDS_URL}/hottrends/visualize/internal/data`;
@@ -26,6 +25,7 @@ const TOP_CHARTS_URL = `${BASE_TRENDS_URL}/api/topcharts`;
 const SUGGESTIONS_URL = `${BASE_TRENDS_URL}/api/autocomplete/`;
 const CATEGORIES_URL = `${BASE_TRENDS_URL}/api/explore/pickers/category`;
 const TODAY_SEARCHES_URL = `${BASE_TRENDS_URL}/api/dailytrends`;
+const MULTIRANGE_INTEREST_OVER_TIME_URL = `${BASE_TRENDS_URL}/api/widgetdata/multirange`;
 const REALTIME_TRENDING_SEARCHES_URL = `${BASE_TRENDS_URL}/api/realtimetrends`;
 
 class GlTrendRequest {
@@ -52,9 +52,6 @@ class GlTrendRequest {
     HOST_LANGUAGE: string = "en-US",
     PROXIES: string[] = []
   ) {
-    // this.GET_METHOD = "GET";
-    // this.POST_METHOD = "POST";
-    // this.BASE_TRENDS_URL = BASE_TRENDS_URL;
     this.TIMEOUT = timeout;
     this.REQUEST_ARGS = REQUEST_ARGS;
     this.HOST_LANGUAGE = HOST_LANGUAGE;
@@ -74,8 +71,6 @@ class GlTrendRequest {
    * The method keeps trying to get the 'NID' cookie until it succeeds or runs out of proxies.
    */
   async getGoogleCookie(): Promise<{ [key: string]: string }> {
-    // while (true) {
-    // Check if proxies are provided in the request arguments
     if ("proxies" in this.REQUEST_ARGS) {
       try {
         // Send a GET request to the Google Trends URL
@@ -92,14 +87,11 @@ class GlTrendRequest {
           cookie.startsWith("NID")
         );
 
-        // Return the 'NID' cookie
-        //! GOTTA CHECK THIS CODE, FOR NOW I USE THE IF ELSE
         return {
           NID: nidCookie ? nidCookie.split(";")[0].split("=")[1] : "undefined",
         };
-      } catch {
-        // If an error occurs, continue to the next iteration of the loop
-        // continue;
+      } catch (error) {
+        console.error(error);
       }
     } else {
       let proxy = "";
@@ -130,19 +122,6 @@ class GlTrendRequest {
             }
           }
         }
-        // Return the 'NID' cookie
-        // const response = await axios.get(
-        //   `${BASE_TRENDS_URL}/explore/?geo=${this.HOST_LANGUAGE.slice(-2)}`,
-        //   {
-        //     timeout: this.TIMEOUT,
-        //     proxy: { host: proxy, port: 8080 }, // assuming port 8080, adjust as needed
-        //     ...this.REQUEST_ARGS,
-        //   }
-        // );
-        // Extract the 'NID' cookie from the response headers
-        // return {
-        //   NID: nidCookie ? nidCookie.split(";")[0].split("=")[1] : "",
-        // };
       } catch (error) {
         // If a proxy error occurs
         if (error.code === "ECONNRESET") {
@@ -181,32 +160,12 @@ class GlTrendRequest {
     method: HttpRequestMethod = HttpRequestMethod.GET,
     kwargs: object = {}
   ) {
-    // Format the URL with the provided parameters in kwargs
     const urlWithParams = this.formatUrl(url, kwargs);
 
-    // Create a new axios instance
     const requestArgs: RequestInit = {
       method,
       headers: { ...this.HEADERS, Cookie: `NID=${this.COOKIES["NID"]}` },
     };
-
-    //! WE WILL NEED TO CHECK THIS LATER
-    /*     const axiosRequest = axios.create({
-      // httpsAgent: new https.Agent({ keepAlive: true }),
-      headers: this.HEADERS,
-      timeout: this.TIMEOUT,
-      params: kwargs,
-      // proxy:
-      //   this.proxies.length > 0
-      //     ? { host: this.proxies[this.proxy_index], port: 8080 }
-      //     : undefined, // assuming port 8080, adjust as needed
-      ...this.REQUEST_ARGS,
-    }); */
-
-    // let response: Promise<Response>;
-
-    // const urlTest =
-    //   "https://trends.google.es/trends/api/explore?hl=es&tz=-60&req=%7B%22comparisonItem%22:%5B%7B%22keyword%22:%22blockchain%22,%22geo%22:%22ES%22,%22time%22:%22now+1-d%22%7D%5D,%22category%22:0,%22property%22:%22%22%7D&tz=-60";
 
     try {
       const response = await fetch(urlWithParams, requestArgs);
@@ -312,7 +271,7 @@ class GlTrendRequest {
   }
 
   /**
-   * Makes request to Google to get API tokens for interest over time, interest by region and related queries
+   * Makes request to Google to get API tokens
    */
   async getTokens(): Promise<void> {
     await this.checkCookie();
@@ -327,7 +286,6 @@ class GlTrendRequest {
       throw new Error("No data returned from Google Trends");
     }
 
-    // order of the json matters...
     let first_region_token = true;
 
     // clear self.related_queries_widget_list and self.related_topics_widget_list
@@ -359,7 +317,11 @@ class GlTrendRequest {
   }
 
   /**
-   * Request data from Google's Interest Over Time section and return a dataframe
+   * Fetches historical search interest for a given keyword from Google Trends' Interest Over Time section.
+   * Provides a timeline of the keyword's popularity, useful for identifying trends and peak interest periods.
+   *
+   * @returns {Promise<any>} - A promise that resolves to an object containing interest over time data.
+   * @throws {Error} - Throws an error if there is a problem fetching the data from the API.
    */
   async interestOverTime(): Promise<any> {
     const over_time_payload = {
@@ -382,13 +344,20 @@ class GlTrendRequest {
     return responseJson;
   }
 
-  //!! gotta work on this later
-  async multiRangeInterestOverTime(): Promise<any> {}
-
+  /**
+   * Fetches and returns data for keywords related to a specified keyword, as indicated
+   * in Google Trends' Related Topics section. This function identifies and provides insights
+   * into topics that are contextually linked to the input keyword, offering a broader
+   * perspective on the keyword's search interest landscape. Such data can be instrumental
+   * in understanding associated trends, expanding keyword research, and identifying
+   * potential areas for content development or marketing strategies.
+   *
+   * @returns {Promise<any>} - A promise that resolves to an object containing related topics for each request.
+   * @throws {Error} - Throws an error if there is a problem fetching the data from the API or if no data is found for a request.
+   */
   async relatedTopics(): Promise<any> {
     const resultDict: any = {};
 
-    // Loop over each item in the related_topics_widget_list
     for (const request_json of this.RELATED_TOPICS_WIDGET_LIST) {
       let kw: string;
       try {
@@ -434,10 +403,16 @@ class GlTrendRequest {
   }
 
   /**
-   * Define an asynchronous function named 'trendingSearches'
-   * The function takes one argument 'pn' which defaults to "united_states" if no value is provided */
-  //! ojo, variable sin usar
-  async trendingSearches(region: string = "united_states") {
+   * Retrieves and returns data on the latest trending searches, as displayed in
+   * the Google Trends' Trending Searches section. This method provides a snapshot
+   * of the most current popular searches, reflecting what topics are gaining
+   * attention globally or in specific regions, depending on the implementation.
+   *
+   * @param {string} [region="united_states"] - The region for which to fetch the trending searches. Defaults to "united_states".
+   * @returns {Promise<any>} - A promise that resolves to an object containing trending searches for the specified region.
+   * @throws {Error} - Throws an error if there is a problem fetching the data from the API or if no data is found for the provided region.
+   */
+  async trendingSearches(region: string = "united_states"): Promise<any> {
     try {
       const searchesResponse = await fetch(TRENDING_SEARCHES_URL);
 
@@ -457,13 +432,19 @@ class GlTrendRequest {
     }
   }
 
+  /**
+   * Retrieves search interest by region for a keyword from Google Trends' Interest by Region section.
+   * Highlights areas with the highest search volumes for the keyword.
+   *
+   * @returns {Promise<any>} - A promise that resolves to an object containing related queries.
+   * @throws {Error} - Throws an error if there is a problem fetching the data from the API.
+   */
   async interestByRegion(
     resolution: "COUNTRY" | "REGION" | "CITY" | "DMA" = "COUNTRY",
     incLowVol: boolean = false,
     //! not used variable
     incGeoCode: boolean = false
   ): Promise<any> {
-    // Prepare the request payload
     if (this.GEO === "") {
       this.INTEREST_BY_REGION_WIDGET.request.resolution = resolution;
     } else if (
@@ -533,9 +514,16 @@ class GlTrendRequest {
     // The TypeScript version will need to replicate the DataFrame manipulation logic
     // using JavaScript arrays and objects or a suitable data manipulation library
 
-    return []; //! Placeholder return
+    return [];
   }
 
+  /**
+   * Retrieves related queries for a keyword from Google Trends' Related Queries section.
+   * Useful for discovering associated search terms.
+   *
+   * @returns {Promise<any>} - A promise that resolves to an object containing related queries.
+   * @throws {Error} - Throws an error if there is a problem fetching the data from the API.
+   */
   async relatedQueries(): Promise<any> {
     const resultDict: { [key: string]: { top: any; rising: any } } = {};
 
@@ -590,15 +578,19 @@ class GlTrendRequest {
     return resultDict;
   }
 
-  async todaySearches(pn: string = "US"): Promise<any[]> {
+  /**
+   * Retrieves today's trending searches for a specified country.
+   *
+   * @param {string} [countryCode="US"] Country code to fetch trending searches for. Defaults to "US".
+   * @returns {Promise<any[]>} Promise resolving to today's trending searches.
+   * @throws {Error} If fetching data from the API fails.
+   */
+  async todaySearches(countryCode: string = "US"): Promise<any[]> {
     const todaySearchesPayload = {
       ns: 15,
-      geo: pn || this.GEO,
-      //! geo: pn, does this have to always be 'US'?
+      geo: countryCode || this.GEO,
       tz: this.TIME_ZONE,
-      //!tz: '-180', does this have to always be -180?
       hl: this.HOST_LANGUAGE,
-      // Include other necessary parameters from this.requestsArgs if needed
     };
 
     const todaySearchedResponse = await this.getData(
@@ -623,22 +615,37 @@ class GlTrendRequest {
     }
   }
 
-  //! seguimos desde acá
-
+  /**
+   * Retrieves suggested keywords to refine a trend search.
+   *
+   * @param {string} keyword - The keyword for which to fetch the suggestions.
+   * @returns {Promise<any>} - A promise that resolves to an array of suggestions for the given keyword.
+   * @throws {Error} - Throws an error if there is a problem fetching the data from the API.
+   */
   async suggestions(keyword: string): Promise<any> {
-    const kwParam = encodeURIComponent(keyword); //!! need quote, check original Equivalent to Python's quote
+    const kwParam = encodeURIComponent(keyword);
     const parameters = { hl: this.HOST_LANGUAGE };
 
     const reqJson = await this.getData(
-      SUGGESTIONS_URL,
+      `${SUGGESTIONS_URL}${kwParam}`,
       HttpRequestMethod.GET,
       parameters
     );
 
-    // Assuming the response structure is similar to the Python example
     return reqJson["topics"];
   }
 
+  /**
+   * Retrieves a hierarchical list of Google Trends' categories with unique IDs.
+   * These categories enable precise filtering for trend queries, facilitating targeted
+   * analysis in specific areas of interest.
+   *
+   * Ideal for segmenting trend data by sectors like technology, health, finance, or
+   * entertainment, enhancing the relevance and specificity of trend insights.
+   *
+   * @returns {Promise<any>} Promise resolving to the categories structure, enabling
+   * refined trend query construction based on topic-specific interests.
+   */
   async categories(): Promise<any> {
     const params = { hl: this.HOST_LANGUAGE };
 
@@ -651,7 +658,51 @@ class GlTrendRequest {
     return reqJson;
   }
 
+  /**
+   * Retrieves Google Trends' Top Charts data for a given topic, showing popular searches and trends.
+   * Provides insights into what subjects are currently garnering significant interest across different categories.
+   *
+   * Useful for market research, content strategy, and identifying trending interests.
+   *
+   * @param {string} date - format YYYY, The year for which to fetch the top charts.
+   * @returns {Promise<any[] | null>} - A promise that resolves to an array of top charts for the given year, or null if no data is found.
+   * @throws {Error} - Throws an error if the date is not a valid year or if there is a problem fetching the data from the API.
+   */
+  async topCharts(date: string): Promise<any[] | null> {
+    const year = parseInt(date, 10);
+
+    if (isNaN(year))
+      throw new Error("The date must be a year with format YYYY");
+
+    const chartPayload = {
+      hl: this.HOST_LANGUAGE,
+      tz: this.TIME_ZONE,
+      date: year,
+      geo: this.GEO,
+      isMobile: false,
+    };
+
+    try {
+      const reqJson = await this.getData(
+        TOP_CHARTS_URL,
+        HttpRequestMethod.GET,
+        chartPayload
+      );
+
+      if (reqJson?.topCharts?.[0]?.listItems) {
+        return reqJson.topCharts[0].listItems;
+      } else {
+        throw new Error("No data found for the provided date");
+      }
+    } catch (error) {
+      console.error("Error fetching top charts data:", error);
+      return null;
+    }
+  }
+
   async realTimeTrendingSearches() {}
+
+  async multiRangeInterestOverTime(): Promise<any> {}
 }
 
 export default GlTrendRequest;

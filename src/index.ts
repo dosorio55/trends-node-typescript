@@ -58,6 +58,12 @@ const server = createServer(async (req, res) => {
   } else if (req.url === "/today-searches") {
     await RequesT.buildPayload(key_words);
     await RequesT.todaySearches();
+  } else if (req.url === "/suggestions") {
+    await RequesT.suggestions("blockchain");
+  } else if (req.url === "/categories") {
+    await RequesT.categories();
+  } else if (req.url === "/top-charts") {
+    await RequesT.topCharts("2014");
   } else {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not Found");
