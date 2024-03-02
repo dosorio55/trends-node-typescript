@@ -164,7 +164,7 @@ class GlTrendRequest {
 
     const requestArgs: RequestInit = {
       method,
-            headers: { ...this.HEADERS, Cookie: `NID=${this.COOKIES["NID"]}` },
+      headers: { ...this.HEADERS, Cookie: `NID=${this.COOKIES["NID"]}` },
     };
 
     try {
@@ -280,7 +280,7 @@ class GlTrendRequest {
     const { error, data } = await this.getData(
       GENERAL_URL,
       HttpRequestMethod.POST,
-      this.TOKEN_PAYLOAD,
+      this.TOKEN_PAYLOAD
       // "https://trends.google.com/trends/api/explore?hl=es&tz=-60&req=%7B%22comparisonItem%22:%5B%7B%22keyword%22:%22Monaco+%E2%80%93+paris-sg%22,%22geo%22:%22FR%22,%22time%22:%22now+1-d%22%7D%5D,%22category%22:0,%22property%22:%22%22%7D&tz=-60"
       // "https://trends.google.fr/trends/explore?q=Monaco%20%E2%80%93%20paris-sg&date=now%201-d&geo=FR&hl=es"
       // "https://trends.google.com/trends/explore?q=blockchain&date=now%201-d&geo=FR&hl=es"
@@ -480,7 +480,7 @@ class GlTrendRequest {
     const { error, data } = await this.getData(
       INTEREST_BY_REGION_URL,
       HttpRequestMethod.GET,
-      regionPayload,
+      regionPayload
       // "https://trends.google.com/trends/api/widgetdata/comparedgeo?hl=es&tz=-60&req=%7B%22geo%22:%7B%22country%22:%22FR%22%7D,%22comparisonItem%22:%5B%7B%22time%22:%222024-03-01T08%5C%5C:16%5C%5C:05+2024-03-02T08%5C%5C:16%5C%5C:05%22,%22complexKeywordsRestriction%22:%7B%22keyword%22:%5B%7B%22type%22:%22BROAD%22,%22value%22:%22blockchain%22%7D%5D%7D%7D%5D,%22resolution%22:%22REGION%22,%22locale%22:%22es%22,%22requestOptions%22:%7B%22property%22:%22%22,%22backend%22:%22CM%22,%22category%22:0%7D,%22userConfig%22:%7B%22userType%22:%22USER_TYPE_LEGIT_USER%22%7D%7D&token=APP6_UEAAAAAZeQxxSpWEZ4vHIakRgxhtYPXEoCpWERW"
     );
 
@@ -564,7 +564,7 @@ class GlTrendRequest {
         RELATED_QUERIES_URL,
         HttpRequestMethod.GET,
         relatedPayload,
-        // "https://trends.google.com/trends/api/widgetdata/relatedsearches?hl=es&tz=-60&req=%7B%22restriction%22:%7B%22geo%22:%7B%22country%22:%22FR%22%7D,%22time%22:%222024-03-01T08%5C%5C:16%5C%5C:05+2024-03-02T08%5C%5C:16%5C%5C:05%22,%22originalTimeRangeForExploreUrl%22:%22now+1-d%22,%22complexKeywordsRestriction%22:%7B%22keyword%22:%5B%7B%22type%22:%22BROAD%22,%22value%22:%22blockchain%22%7D%5D%7D%7D,%22keywordType%22:%22ENTITY%22,%22metric%22:%5B%22TOP%22,%22RISING%22%5D,%22trendinessSettings%22:%7B%22compareTime%22:%222024-02-29T08%5C%5C:16%5C%5C:05+2024-03-01T08%5C%5C:16%5C%5C:05%22%7D,%22requestOptions%22:%7B%22property%22:%22%22,%22backend%22:%22CM%22,%22category%22:0%7D,%22language%22:%22es%22,%22userCountryCode%22:%22FR%22,%22userConfig%22:%7B%22userType%22:%22USER_TYPE_LEGIT_USER%22%7D%7D&token=APP6_UEAAAAAZeQxxSX21JTQKPpWdJMHBlMzO9DlXCDk"
+        "https://trends.google.com/trends/api/widgetdata/relatedsearches?hl=es&tz=-60&req=%7B%22restriction%22:%7B%22geo%22:%7B%22country%22:%22FR%22%7D,%22time%22:%222024-03-01T08%5C%5C:16%5C%5C:05+2024-03-02T08%5C%5C:16%5C%5C:05%22,%22originalTimeRangeForExploreUrl%22:%22now+1-d%22,%22complexKeywordsRestriction%22:%7B%22keyword%22:%5B%7B%22type%22:%22BROAD%22,%22value%22:%22blockchain%22%7D%5D%7D%7D,%22keywordType%22:%22ENTITY%22,%22metric%22:%5B%22TOP%22,%22RISING%22%5D,%22trendinessSettings%22:%7B%22compareTime%22:%222024-02-29T08%5C%5C:16%5C%5C:05+2024-03-01T08%5C%5C:16%5C%5C:05%22%7D,%22requestOptions%22:%7B%22property%22:%22%22,%22backend%22:%22CM%22,%22category%22:0%7D,%22language%22:%22es%22,%22userCountryCode%22:%22FR%22,%22userConfig%22:%7B%22userType%22:%22USER_TYPE_LEGIT_USER%22%7D%7D&token=APP6_UEAAAAAZeQxxSX21JTQKPpWdJMHBlMzO9DlXCDk"
       );
 
       if (error) throw new Error(error);
