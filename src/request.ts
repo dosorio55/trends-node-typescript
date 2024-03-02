@@ -159,7 +159,7 @@ class GlTrendRequest {
     url: string,
     method: HttpRequestMethod = HttpRequestMethod.GET,
     kwargs: object = {}
-  ) {
+  ): Promise<{ data: any; error: string | null }> {
     const urlWithParams = this.formatUrl(url, kwargs);
 
     const requestArgs: RequestInit = {
@@ -191,7 +191,7 @@ class GlTrendRequest {
           if (jsonStartIndex !== -1 && responseKey && responseKey[1]) {
             const jsonText = responseText.substring(jsonStartIndex);
             const jsonResult = JSON.parse(jsonText);
-            return jsonResult[responseKey[1]];
+            return { data: jsonResult[responseKey[1]], error: null };
           } else {
             throw new Error("JSON is malformed");
           }
@@ -199,13 +199,14 @@ class GlTrendRequest {
       } else {
         if (response.status === 429) {
           // Too Many Requests
-          throw new Error("TooManyRequestsError");
+          throw new Error("429 ERROR, too many requests");
         }
 
         throw new Error("ResponseError");
       }
     } catch (error) {
       console.error(error);
+      return { data: null, error: error.message };
     }
   }
 
@@ -260,14 +261,14 @@ class GlTrendRequest {
    */
   async checkCookie() {
     // Check if the COOKIES object is empty or the "NID" property is undefined
-    if (
-      Object.keys(this.COOKIES).length === 0 &&
-      this.COOKIES["NID"] === undefined
-    ) {
+    // if (
+    //   Object.keys(this.COOKIES).length === 0 &&
+    //   this.COOKIES["NID"] === undefined
+    // ) {
       // If so, call the asynchronous method getGoogleCookie to fetch the cookie
       // and assign the result to this.COOKIES
       this.COOKIES = await this.getGoogleCookie();
-    }
+    // }
   }
 
   /**
@@ -276,14 +277,18 @@ class GlTrendRequest {
   async getTokens(): Promise<void> {
     await this.checkCookie();
     // make the request and parse the returned json
-    const widget_dicts = await this.getData(
+    const { error, data } = await this.getData(
       GENERAL_URL,
       HttpRequestMethod.POST,
       this.TOKEN_PAYLOAD
     );
 
-    if (!widget_dicts) {
+    if (!data) {
       throw new Error("No data returned from Google Trends");
+    }
+
+    if (error) {
+      throw new Error(error);
     }
 
     let first_region_token = true;
@@ -294,7 +299,7 @@ class GlTrendRequest {
     this.RELATED_TOPICS_WIDGET_LIST = [];
 
     // assign requests
-    for (const widget of widget_dicts) {
+    for (const widget of data) {
       if (widget.id === "TIMESERIES") {
         this.INTEREST_OVER_TIME_WIDGET = widget;
         continue;
@@ -375,22 +380,24 @@ class GlTrendRequest {
         tz: this.TIME_ZONE,
       };
 
-      const responseJson = await this.getData(
+      const { error, data } = await this.getData(
         RELATED_QUERIES_URL,
         HttpRequestMethod.GET,
         relatedPayload
       );
 
-      if (!responseJson) {
+      if (error) throw new Error(error);
+
+      if (!data) {
         throw new Error("An error occurred while fetching data from the API");
       }
 
       let relatedTop: any;
       let relatedRising: any;
 
-      if (responseJson["rankedList"].length > 0) {
-        relatedTop = responseJson["rankedList"][0]["rankedKeyword"];
-        relatedRising = responseJson["rankedList"][1]["rankedKeyword"];
+      if (data["rankedList"].length > 0) {
+        relatedTop = data["rankedList"][0]["rankedKeyword"];
+        relatedRising = data["rankedList"][1]["rankedKeyword"];
       } else {
         relatedTop = null;
         relatedRising = null;
@@ -465,14 +472,16 @@ class GlTrendRequest {
     };
 
     // Perform the request
-    const response = await this.getData(
+    const { error, data } = await this.getData(
       INTEREST_BY_REGION_URL,
       HttpRequestMethod.GET,
       regionPayload
     );
 
+    if (error) throw new Error(error);
+
     // Assuming response is already parsed JSON
-    const data = response.default.geoMapData;
+    const result = data.default.geoMapData;
 
     if (!data || data.length === 0) {
       return []; // Return an empty array if no data
@@ -543,11 +552,15 @@ class GlTrendRequest {
         tz: this.TIME_ZONE,
       };
 
-      const relatedQueriesResponse = await this.getData(
+      const { error, data } = await this.getData(
         RELATED_QUERIES_URL,
         HttpRequestMethod.GET,
         relatedPayload
       );
+
+      if (error) throw new Error(error);
+
+      const relatedQueriesResponse = data;
 
       if (
         relatedQueriesResponse &&
@@ -593,11 +606,15 @@ class GlTrendRequest {
       hl: this.HOST_LANGUAGE,
     };
 
-    const todaySearchedResponse = await this.getData(
+    const { error, data } = await this.getData(
       TODAY_SEARCHES_URL,
       HttpRequestMethod.GET,
       todaySearchesPayload
     );
+
+    if (error) throw new Error(error);
+
+    const todaySearchedResponse = data;
 
     if (
       todaySearchedResponse &&
@@ -626,13 +643,15 @@ class GlTrendRequest {
     const kwParam = encodeURIComponent(keyword);
     const parameters = { hl: this.HOST_LANGUAGE };
 
-    const reqJson = await this.getData(
+    const { error, data } = await this.getData(
       `${SUGGESTIONS_URL}${kwParam}`,
       HttpRequestMethod.GET,
       parameters
     );
 
-    return reqJson["topics"];
+    if (error) throw new Error(error);
+
+    return data["topics"];
   }
 
   /**
@@ -683,11 +702,15 @@ class GlTrendRequest {
     };
 
     try {
-      const reqJson = await this.getData(
+      const { error, data } = await this.getData(
         TOP_CHARTS_URL,
         HttpRequestMethod.GET,
         chartPayload
       );
+
+      if (error) throw new Error(error);
+
+      const reqJson = data;
 
       if (reqJson?.topCharts?.[0]?.listItems) {
         return reqJson.topCharts[0].listItems;
