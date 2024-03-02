@@ -481,11 +481,13 @@ class GlTrendRequest {
     if (error) throw new Error(error);
 
     // Assuming response is already parsed JSON
-    const result = data.default.geoMapData;
+    const result = data.geoMapData;
 
-    if (!data || data.length === 0) {
+    if (!result || result.length === 0) {
       return []; // Return an empty array if no data
     }
+
+    return result
 
     // Transform the response data into a suitable structure
     // This part would require replacing pandas functionality with TypeScript logic
