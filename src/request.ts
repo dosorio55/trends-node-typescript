@@ -60,7 +60,6 @@ class GlTrendRequest {
     this.HEADERS = {
       "accept-language": this.HOST_LANGUAGE,
     };
-    //! we will have to check how to transform this into a valid typescript code
   }
 
   /**
@@ -158,8 +157,9 @@ class GlTrendRequest {
   async getData(
     url: string,
     method: HttpRequestMethod = HttpRequestMethod.GET,
-    kwargs: object = {}
-  ) {
+    kwargs: object,
+    newUrl?: string
+  ): Promise<{ data: any; error: string | null }> {
     const urlWithParams = this.formatUrl(url, kwargs);
 
     const requestArgs: RequestInit = {
@@ -168,7 +168,7 @@ class GlTrendRequest {
     };
 
     try {
-      const response = await fetch(urlWithParams, requestArgs);
+      const response = await fetch(newUrl || urlWithParams, requestArgs);
 
       if (response.status === 200) {
         const contentType = response.headers.get("content-type");
@@ -191,7 +191,7 @@ class GlTrendRequest {
           if (jsonStartIndex !== -1 && responseKey && responseKey[1]) {
             const jsonText = responseText.substring(jsonStartIndex);
             const jsonResult = JSON.parse(jsonText);
-            return jsonResult[responseKey[1]];
+            return { data: jsonResult[responseKey[1]], error: null };
           } else {
             throw new Error("JSON is malformed");
           }
@@ -199,13 +199,14 @@ class GlTrendRequest {
       } else {
         if (response.status === 429) {
           // Too Many Requests
-          throw new Error("TooManyRequestsError");
+          throw new Error("429 ERROR, too many requests");
         }
 
         throw new Error("ResponseError");
       }
     } catch (error) {
       console.error(error);
+      return { data: null, error: error.message };
     }
   }
 
@@ -260,14 +261,14 @@ class GlTrendRequest {
    */
   async checkCookie() {
     // Check if the COOKIES object is empty or the "NID" property is undefined
-    if (
-      Object.keys(this.COOKIES).length === 0 &&
-      this.COOKIES["NID"] === undefined
-    ) {
-      // If so, call the asynchronous method getGoogleCookie to fetch the cookie
-      // and assign the result to this.COOKIES
-      this.COOKIES = await this.getGoogleCookie();
-    }
+    // if (
+    //   Object.keys(this.COOKIES).length === 0 &&
+    //   this.COOKIES["NID"] === undefined
+    // ) {
+    // If so, call the asynchronous method getGoogleCookie to fetch the cookie
+    // and assign the result to this.COOKIES
+    this.COOKIES = await this.getGoogleCookie();
+    // }
   }
 
   /**
@@ -276,14 +277,21 @@ class GlTrendRequest {
   async getTokens(): Promise<void> {
     await this.checkCookie();
     // make the request and parse the returned json
-    const widget_dicts = await this.getData(
+    const { error, data } = await this.getData(
       GENERAL_URL,
       HttpRequestMethod.POST,
       this.TOKEN_PAYLOAD
+      // "https://trends.google.com/trends/api/explore?hl=es&tz=-60&req=%7B%22comparisonItem%22:%5B%7B%22keyword%22:%22Monaco+%E2%80%93+paris-sg%22,%22geo%22:%22FR%22,%22time%22:%22now+1-d%22%7D%5D,%22category%22:0,%22property%22:%22%22%7D&tz=-60"
+      // "https://trends.google.fr/trends/explore?q=Monaco%20%E2%80%93%20paris-sg&date=now%201-d&geo=FR&hl=es"
+      // "https://trends.google.com/trends/explore?q=blockchain&date=now%201-d&geo=FR&hl=es"
     );
 
-    if (!widget_dicts) {
+    if (!data) {
       throw new Error("No data returned from Google Trends");
+    }
+
+    if (error) {
+      throw new Error(error);
     }
 
     let first_region_token = true;
@@ -294,7 +302,7 @@ class GlTrendRequest {
     this.RELATED_TOPICS_WIDGET_LIST = [];
 
     // assign requests
-    for (const widget of widget_dicts) {
+    for (const widget of data) {
       if (widget.id === "TIMESERIES") {
         this.INTEREST_OVER_TIME_WIDGET = widget;
         continue;
@@ -331,17 +339,19 @@ class GlTrendRequest {
       tz: this.TIME_ZONE,
     };
 
-    const responseJson = await this.getData(
+    const { error, data } = await this.getData(
       INTEREST_OVER_TIME_URL,
       HttpRequestMethod.GET,
       over_time_payload
     );
 
-    if (!responseJson) {
+    if (error) throw new Error(error);
+
+    if (!data) {
       throw new Error("An error occurred while fetching data from the API");
     }
 
-    return responseJson;
+    return data;
   }
 
   /**
@@ -375,22 +385,24 @@ class GlTrendRequest {
         tz: this.TIME_ZONE,
       };
 
-      const responseJson = await this.getData(
+      const { error, data } = await this.getData(
         RELATED_QUERIES_URL,
         HttpRequestMethod.GET,
         relatedPayload
       );
 
-      if (!responseJson) {
+      if (error) throw new Error(error);
+
+      if (!data) {
         throw new Error("An error occurred while fetching data from the API");
       }
 
       let relatedTop: any;
       let relatedRising: any;
 
-      if (responseJson["rankedList"].length > 0) {
-        relatedTop = responseJson["rankedList"][0]["rankedKeyword"];
-        relatedRising = responseJson["rankedList"][1]["rankedKeyword"];
+      if (data["rankedList"].length > 0) {
+        relatedTop = data["rankedList"][0]["rankedKeyword"];
+        relatedRising = data["rankedList"][1]["rankedKeyword"];
       } else {
         relatedTop = null;
         relatedRising = null;
@@ -465,18 +477,23 @@ class GlTrendRequest {
     };
 
     // Perform the request
-    const response = await this.getData(
+    const { error, data } = await this.getData(
       INTEREST_BY_REGION_URL,
       HttpRequestMethod.GET,
       regionPayload
+      // "https://trends.google.com/trends/api/widgetdata/comparedgeo?hl=es&tz=-60&req=%7B%22geo%22:%7B%22country%22:%22FR%22%7D,%22comparisonItem%22:%5B%7B%22time%22:%222024-03-01T08%5C%5C:16%5C%5C:05+2024-03-02T08%5C%5C:16%5C%5C:05%22,%22complexKeywordsRestriction%22:%7B%22keyword%22:%5B%7B%22type%22:%22BROAD%22,%22value%22:%22blockchain%22%7D%5D%7D%7D%5D,%22resolution%22:%22REGION%22,%22locale%22:%22es%22,%22requestOptions%22:%7B%22property%22:%22%22,%22backend%22:%22CM%22,%22category%22:0%7D,%22userConfig%22:%7B%22userType%22:%22USER_TYPE_LEGIT_USER%22%7D%7D&token=APP6_UEAAAAAZeQxxSpWEZ4vHIakRgxhtYPXEoCpWERW"
     );
 
-    // Assuming response is already parsed JSON
-    const data = response.default.geoMapData;
+    if (error) throw new Error(error);
 
-    if (!data || data.length === 0) {
+    // Assuming response is already parsed JSON
+    const result = data.geoMapData;
+
+    if (!result || result.length === 0) {
       return []; // Return an empty array if no data
     }
+
+    return result;
 
     // Transform the response data into a suitable structure
     // This part would require replacing pandas functionality with TypeScript logic
@@ -543,11 +560,16 @@ class GlTrendRequest {
         tz: this.TIME_ZONE,
       };
 
-      const relatedQueriesResponse = await this.getData(
+      const { error, data } = await this.getData(
         RELATED_QUERIES_URL,
         HttpRequestMethod.GET,
-        relatedPayload
+        relatedPayload,
+        // "https://trends.google.com/trends/api/widgetdata/relatedsearches?hl=es&tz=-60&req=%7B%22restriction%22:%7B%22geo%22:%7B%22country%22:%22FR%22%7D,%22time%22:%222024-03-01T08%5C%5C:16%5C%5C:05+2024-03-02T08%5C%5C:16%5C%5C:05%22,%22originalTimeRangeForExploreUrl%22:%22now+1-d%22,%22complexKeywordsRestriction%22:%7B%22keyword%22:%5B%7B%22type%22:%22BROAD%22,%22value%22:%22blockchain%22%7D%5D%7D%7D,%22keywordType%22:%22ENTITY%22,%22metric%22:%5B%22TOP%22,%22RISING%22%5D,%22trendinessSettings%22:%7B%22compareTime%22:%222024-02-29T08%5C%5C:16%5C%5C:05+2024-03-01T08%5C%5C:16%5C%5C:05%22%7D,%22requestOptions%22:%7B%22property%22:%22%22,%22backend%22:%22CM%22,%22category%22:0%7D,%22language%22:%22es%22,%22userCountryCode%22:%22FR%22,%22userConfig%22:%7B%22userType%22:%22USER_TYPE_LEGIT_USER%22%7D%7D&token=APP6_UEAAAAAZeQxxSX21JTQKPpWdJMHBlMzO9DlXCDk"
       );
+
+      if (error) throw new Error(error);
+
+      const relatedQueriesResponse = data;
 
       if (
         relatedQueriesResponse &&
@@ -593,11 +615,15 @@ class GlTrendRequest {
       hl: this.HOST_LANGUAGE,
     };
 
-    const todaySearchedResponse = await this.getData(
+    const { error, data } = await this.getData(
       TODAY_SEARCHES_URL,
       HttpRequestMethod.GET,
       todaySearchesPayload
     );
+
+    if (error) throw new Error(error);
+
+    const todaySearchedResponse = data;
 
     if (
       todaySearchedResponse &&
@@ -626,13 +652,15 @@ class GlTrendRequest {
     const kwParam = encodeURIComponent(keyword);
     const parameters = { hl: this.HOST_LANGUAGE };
 
-    const reqJson = await this.getData(
+    const { error, data } = await this.getData(
       `${SUGGESTIONS_URL}${kwParam}`,
       HttpRequestMethod.GET,
       parameters
     );
 
-    return reqJson["topics"];
+    if (error) throw new Error(error);
+
+    return data["topics"];
   }
 
   /**
@@ -683,14 +711,16 @@ class GlTrendRequest {
     };
 
     try {
-      const reqJson = await this.getData(
+      const { error, data } = await this.getData(
         TOP_CHARTS_URL,
         HttpRequestMethod.GET,
         chartPayload
       );
 
-      if (reqJson?.topCharts?.[0]?.listItems) {
-        return reqJson.topCharts[0].listItems;
+      if (error) throw new Error(error);
+
+      if (data?.[0]?.listItems) {
+        return data[0].listItems;
       } else {
         throw new Error("No data found for the provided date");
       }
