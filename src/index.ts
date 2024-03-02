@@ -28,7 +28,6 @@ const server = createServer(async (req, res) => {
     } else if (req.url === "/related-topics") {
       const data = await RequesT.relatedTopics();
       sendResponse(res, data);
-      res.writeHead(200, { "Content-Type": "application/json" });
     } else if (req.url === "/trending-searches") {
       const data = await RequesT.trendingSearches();
       sendResponse(res, data);
